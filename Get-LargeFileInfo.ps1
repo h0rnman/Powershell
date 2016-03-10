@@ -1,24 +1,33 @@
 function Get-LargeFileInfo {
 [CmdletBinding()]
 
-Param(
-	[Parameter(Position=1)]
-	[string]$Path = $PSScriptRoot,
-	[Parameter(Position=2)]
-	[int]$MinSize = 250MB
+Param (
+    [parameter(Mandatory=$true, Position=1)]
+    [string[]]$Path,
+    [parameter(Mandatory=$false, Position=2)]
+    [int]$MinSize = 250MB
 )
 
-	$results = @()
-	Get-ChildItem $path -recurse -ea 0 | Where-Object {$_.PSIsContainer -eq $false -and $_.length -gt $MinSize } | Foreach-Object {
-		$obj = "" | select Directory, Name, Length, LengthKB, LengthMB, LengthGB, Owner
-		$obj.Directory = $_.DirectoryName
-		$obj.Name = $_.Name
-        $obj.Length = $_.length
-        $obj.LengthKB = ( ("{0:N2}" -f ($_.length/1KB)))
-		$obj.LengthMB = ( ("{0:N2}" -f ($_.length/1MB)))
-        $obj.LengthGB = ( ("{0:N2}" -f ($_.length/1GB)))
-		$obj.Owner = ((Get-ACL $_.FullName).Owner)
-		$results += $obj
-	}
-	$results
+    Write-Verbose "Path is $([string]::Join('; ',$arr))"
+    Write-Verbose "MinSize is $MinSize"
+
+    $results = @()
+
+    foreach ($location in $Path) {
+
+        Write-Verbose "Searching in $location"
+
+        Get-ChildItem $location -Recurse -ErrorAction SilentlyContinue | Where-Object { ($_.PSIsContainer -eq $false) -and ($_.Length -ge $MinSize) } | ForEach-Object {
+            $temp = "" | select Name, Folder, Length, Bytes, Owner
+            $temp.Name = $_.Name
+            $temp.Folder = $_.DirectoryName
+            $temp.Length = ("{0:N2}" -f ($_.Length / 1mb))
+            $temp.Bytes = $_.Length
+            $temp.Owner = (Get-Acl $_.FullName).Owner
+
+            $results += $temp
+        }
+    }
+
+    $results | sort Bytes -Descending | select Name, Folder, Length, Owner
 }
